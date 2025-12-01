@@ -1,0 +1,8 @@
+---
+title: "Homework 6"
+author: "Sergio Ozoria Ramirez"
+date: "2025-12-01"
+output: github_document
+---
+
+Commiting first comment for homework 6
