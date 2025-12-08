@@ -116,7 +116,7 @@ knitr::kable(all_cities_plot)
 ```
 
 
-```{r figure 1, fig.height = 15, fig.width = 7}
+```{r figure_1, fig.height = 22, fig.width = 7}
 ggplot(all_cities_plot,
        aes(
          x = estimate,
