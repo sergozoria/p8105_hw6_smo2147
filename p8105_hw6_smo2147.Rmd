@@ -11,12 +11,14 @@ Potential packages are first loaded to use for our problem sets. Figure
 preferences were used to set figure sizing and aesthetics for plotting
 outputs.
 
-```{r}
+```{r setup}
 library(tidyverse)
 library(gtsummary)
 library(modelr)
 library(rvest)
 library(scales)
+library(p8105.datasets)
+library(broom)
 
 knitr::opts_chunk$set(
   fig.width = 6,
@@ -37,7 +39,7 @@ scale_fill_discrete = scale_fill_viridis_d
 
 # Problem 1
 
-```{r}
+```{r loading dataset}
 wash_homi =
   read.csv("./Data/homicide-data.csv", na = c("NA", ".", "")) |> 
   janitor::clean_names()
@@ -76,7 +78,7 @@ baltimore_lg = glm(
 )
 
 baltimore_tidy = 
-  broom::tidy(
+  tidy(
     baltimore_lg,
     exponentiate = TRUE,
     conf.int = TRUE)
@@ -88,7 +90,7 @@ baltimore_tidy |>
   knitr::kable()
 ```
 
-```{r}
+```{r all cities log regression}
 all_cities = wash_homi |> 
   group_by(city_state) |> 
   nest() |> 
@@ -98,7 +100,7 @@ all_cities = wash_homi |>
       data = .x,
       family = binomial
     )),
-    tidied = map(model, ~ broom::tidy(
+    tidied = map(model, ~ tidy(
       .x,
       exponentiate = TRUE,
       conf.int = TRUE
@@ -123,7 +125,12 @@ ggplot(all_cities_plot,
          y = fct_reorder(city_state, estimate)
        )) +
   geom_point(size = 2) +
-  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2) +
+  geom_errorbar(
+    aes(xmin = conf.low, xmax = conf.high,
+        y = fct_reorder(city_state, estimate)),
+    width = 0.2,
+    orientation = "y"
+  ) +
   geom_vline(xintercept = 1, linetype = "dashed") +
   labs(
     title = "Figure 1. Adjusted Odds Ratios: Male vs Female Homicide Victims (U.S. Cities)",
@@ -144,3 +151,104 @@ Across U.S. cities in our sample, the adjusted odds ratios were predominantly be
 For example, New York, NY had an adjusted OR of approximately 0.24-0.26, with narrow confidence interval estimates that did not include the null value of 1. This suggests there is a strong association that homicide cases involving male victims in NYC had lower odds of being solved when compared to cases involving female victims in the same city, after adjusting for key covariates. 
 
 On the flip-side, Albuquerque, NM had an adjusted OR of approximately 1.75-1.80, with large confidence interval estimates, including the null value of 1. This suggests there is not a strong association that homicide cases involving males in Albuquerque were more or less likely to be solved when compared to those involving female victims in the same city, after adjusting for key predictors.
+
+# Problem 2
+
+```{r loading p2 dataset}
+library(p8105.datasets)
+data("weather_df") 
+
+weather_clean = weather_df |>
+  select(tmax, tmin, prcp) |>
+  drop_na()
+```
+
+```{r bootstrap funct} 
+bootstrap_est = function(df) {
+  
+  boot_df = sample_frac(df, replace = TRUE)
+  
+  fit = lm(tmax ~ tmin + prcp, data = boot_df)
+  
+  r2 = glance(fit) |> 
+    pull(r.squared)
+  
+  coef_df = tidy(fit)
+  
+  beta1 =
+    coef_df |> 
+    filter(term == "tmin") |> 
+    pull(estimate)
+  
+  beta2 =
+    coef_df |> 
+    filter(term == "prcp") |> 
+    pull(estimate)
+
+  tibble(
+    r2 = r2,
+    beta_ratio = beta1 / beta2
+  )
+}
+```
+
+
+```{r iteraton 5000}
+set.seed(123)
+
+boot_results =
+  tibble(iter = 1:5000) |> 
+  mutate(
+    results = map(iter, ~ bootstrap_est(weather_clean)
+  )) |> 
+    unnest(results)
+```
+
+
+```{r figure 2}
+boot_results |> 
+  ggplot(aes(x = r2)) +
+  geom_histogram(bins = 40, fill = "skyblue", color = "white") +
+  labs(
+    title = "Figure 2. Bootstrap Distribution of R2",
+    x = "R2",
+    y = "Count"
+  )
+
+boot_ci_r2 = boot_results |> 
+  summarize(
+    lower = quantile(r2, 0.025),
+    upper = quantile(r2, 0.975)
+  )
+
+boot_ci_r2 |> 
+  knitr::kable()
+```
+
+#### Figure 2. Comments: 
+
+The bootstrap distribution of R2 is approximately symmetric and bell-shaped, where the data is centered around 0.94. This means that across repeated resamples of the weather data, the model will consistently explain about 94% of the variability in `tmax` using `tmin` and `prcp` as predictors. The remaining 6% of variation might be explain by outside factors not included in the model, which could reflect day-to-day fluctuations in temperature that are not captured by our predictors. Therefore, with bootstrap sample of 5000, the 95% CI for R2 is about 0.934 (lower), 0.946 (upper). These estimates show little uncertainty in the statistical power the model is producing. Thus, we can conclude that tmin is a strong predictor of tmax. 
+
+```{r figure 3}
+boot_results |> 
+  ggplot(aes(x = beta_ratio)) +
+  geom_histogram(bins = 40, fill = "orchid", color = "white") +
+  labs(
+    title = "Figure 3. Bootstrap Distribution of B1 / B2",
+    x = expression(hat(beta)[1] / hat(beta)[2]),
+    y = "Count"
+  )
+
+boot_ci_b12 = boot_results |> 
+  summarize(
+    lower = quantile(beta_ratio, 0.025),
+    upper = quantile(beta_ratio, 0.975)
+  )
+
+boot_ci_b12 |> 
+  knitr::kable()
+```
+
+#### Figure 3. Comments:
+
+The bootstrap distribution for B1 and B2 is right-skewed and centered around large negative values, somewhere between 280 and 120. This means that the estimated coefficients for `prcp` are very close to zero across most bootstrap samples. Because of this, it leads to instability in the model and long tails in the distribution. This is also supported by the 95% bootstrap CIs for the estimates, with a 95% CI of -277.17 (lower), -125.70 (upper), showing instability. This means that `tmin` and `prcp` have opposite estimates in almost most bootstrap samples. This means that `prcp` is unable to provide linear information once we account for `tmin` in the model
