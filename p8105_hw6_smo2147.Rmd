@@ -5,4 +5,136 @@ date: "2025-12-01"
 output: github_document
 ---
 
-Commiting first comment for homework 6
+
+# Set up
+Potential packages are first loaded to use for our problem sets. Figure
+preferences were used to set figure sizing and aesthetics for plotting
+outputs.
+
+```{r}
+library(tidyverse)
+library(gtsummary)
+library(modelr)
+library(rvest)
+library(scales)
+
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
+# Problem 1
+
+```{r}
+wash_homi =
+  read.csv("./Data/homicide-data.csv", na = c("NA", ".", "")) |> 
+  janitor::clean_names()
+```
+
+```{r create_city_state_and_filters}
+wash_homi = 
+  wash_homi |>
+  mutate(
+    city_state = str_c(city, state, sep = ", "),
+    solved = factor(case_when(
+      disposition == "Closed by arrest" ~ "Solved",
+      disposition %in% c("Closed without arrest", "Open/No arrest") ~ "Unsolved"
+    ),
+    levels = c("Unsolved", "Solved")
+    )
+  ) |> 
+  filter(
+    !city_state %in% c("Dallas, TX", "Phoenix, AZ", 
+                       "Kansas City, MO", "Tulsa, AL"),
+    victim_race %in% c("White", "Black")
+  ) |> 
+  mutate(
+    victim_age = as.numeric(victim_age)
+  )
+```
+
+```{r baltimore logistic regression}
+baltimore_df = wash_homi |> 
+  filter(city_state == "Baltimore, MD")
+
+baltimore_lg = glm(
+  solved ~ victim_age + victim_sex + victim_race,
+  data = baltimore_df,
+  family = binomial
+)
+
+baltimore_tidy = 
+  broom::tidy(
+    baltimore_lg,
+    exponentiate = TRUE,
+    conf.int = TRUE)
+
+knitr::kable(baltimore_tidy)
+
+baltimore_tidy |> 
+  filter(term == "victim_sexMale") |> 
+  knitr::kable()
+```
+
+```{r}
+all_cities = wash_homi |> 
+  group_by(city_state) |> 
+  nest() |> 
+  mutate(
+    model = map(data, ~ glm(
+      solved ~ victim_age + victim_sex + victim_race,
+      data = .x,
+      family = binomial
+    )),
+    tidied = map(model, ~ broom::tidy(
+      .x,
+      exponentiate = TRUE,
+      conf.int = TRUE
+    ))
+  ) |> 
+  unnest(tidied) |> 
+  filter(term == "victim_sexMale") |> 
+  select(city_state, estimate, conf.low, conf.high, p.value)
+
+all_cities_plot =
+  all_cities |>
+  arrange(estimate)
+
+knitr::kable(all_cities_plot)
+```
+
+
+```{r figure 1}
+ggplot(all_cities_plot, 
+       aes(
+         x = estimate, 
+         y = fct_reorder(city_state, estimate))) +
+  geom_point() +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2) +
+  geom_vline(xintercept = 1, linetype = "dashed") +
+  labs(
+    title = "Figure 1. Adjusted Odds Ratios: Male vs Female Homicide Victims (U.S. Cities)",
+    x = "Adjusted ORs (Male vs Female)",
+    y = "City"
+  )
+```
+
+#### Figure 1. Comments:
+
+Across U.S. cities in our sample, the adjusted odds ratios were predominantly below the null value of 1, indicating that homicides involving male victims were less likely to be solved when compared to those involving female victims, after adjusting for victim age and race. In many cities, however, the confidence intervals included the null value, suggesting little evidence of an association and/or no clear indication of higher or lower case resolution rates for male-victim case in those cities. 
+
+For example, New York, NY had an adjusted OR of approximately 0.24-0.26, with narrow confidence interval estimates that did not include the null value of 1. This suggests there is a strong association that homicide cases involving male victims in NYC had lower odds of being solved when compared to cases involving female victims in the same city, after adjusting for key covariates. 
+
+On the flip-side, Albuquerque, NM had an adjusted OR of approximately 1.75-1.80, with large confidence interval estimates, including the null value of 1. This suggests there is not a strong association that homicide cases involving males in Albuquerque were more or less likely to be solved when compared to those involving female victims in the same city, after adjusting for key predictors.
