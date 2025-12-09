@@ -251,4 +251,89 @@ boot_ci_b12 |>
 
 #### Figure 3. Comments:
 
-The bootstrap distribution for B1 and B2 is right-skewed and centered around large negative values, somewhere between 280 and 120. This means that the estimated coefficients for `prcp` are very close to zero across most bootstrap samples. Because of this, it leads to instability in the model and long tails in the distribution. This is also supported by the 95% bootstrap CIs for the estimates, with a 95% CI of -277.17 (lower), -125.70 (upper), showing instability. This means that `tmin` and `prcp` have opposite estimates in almost most bootstrap samples. This means that `prcp` is unable to provide linear information once we account for `tmin` in the model
+The bootstrap distribution for B1 and B2 is right-skewed and centered around large negative values, somewhere between 280 and 120. This means that the estimated coefficients for `prcp` are very close to zero across most bootstrap samples. Because of this, it leads to instability in the model and long tails in the distribution. This is also supported by the 95% bootstrap CIs for the estimates, with a 95% CI of -277.17 (lower), -125.70 (upper), showing instability. This means that `tmin` and `prcp` have opposite estimates in almost most bootstrap samples. This means that `prcp` is unable to provide linear information once we account for `tmin` in the mode
+
+# Problem 3
+
+```{r loading birthweight ds}
+birthweight = 
+  read_csv("./Data/birthweight.csv", na = c("NA", ".", "")) |> 
+  janitor::clean_names()
+```
+
+
+```{r cleaning birthweight ds}
+birthweight = birthweight |> 
+mutate(
+    babysex = factor(
+      babysex,
+      levels = c(1, 2),
+      labels = c("Male", "Female")
+    ),
+    frace = factor(
+      frace,
+      levels = c(1, 2, 3, 4, 8, 9),
+      labels = c("White", "Black", "Asian", 
+                 "Puerto Rican", "Other", "Unknown")
+    ),
+    mrace = factor(
+      mrace,
+      levels = c(1, 2, 3, 4, 8),
+      labels = c("White", "Black", "Asian", 
+                 "Puerto Rican", "Other")
+    ),
+    parity = as.integer(parity),
+    pnumlbw = as.integer(pnumlbw),
+    pnumsga = as.integer(pnumsga),
+    malform = factor(
+      malform, 
+      levels = c(0, 1),
+      labels = c("Absent", "Present"))
+  )
+```
+
+
+```{r checking NAs}
+colSums(is.na(birthweight)) |> 
+  knitr::kable()
+```
+
+### Birthweight Regression Model
+
+To propose a regression model for the birth-weight dataset, I took a look at the dataset in question, explored the literature a bit, and considered biological factors into the decision-making for this regression model. Because birth-weight is impacted by the head circumference and length at birth (which tend to be larger/heavier than the body at birth), as well as the mother's gestational age, these variables serve as core indicators of fetal growth. There are also other factors known to impact fetal growth, such as smoking during pregnancy, maternal weight gain, pre-pregnancy body mass index, and the age of the mother.
+
+Based on these factors, I used a linear regression model that includes `bhead` as the main predictor and `bwt` as the outcome of interest, followed by additional covariates, including `blength`, `gaweeks`, `babysex`, `smoken`, `wtgain`, `ppbmi`, `mheight`, and `momage`. These covariates help reduce potential confounding and improve precision/accuracy in our estimates. 
+
+This model will be compared to another model that uses length at birth and gestational age as predictors, and another that includes head circumference, length, sex, and all interactions. These models will help us assess which model is the best at predicting the outcomes of interest.
+
+```{r lm bwt and bhead}
+bw_model1 = lm(
+  bwt ~ bhead + blength + gaweeks + babysex + 
+    smoken + wtgain + ppbmi + mheight + momage,
+  data = birthweight
+)
+
+bw_model1 |> 
+  broom::tidy() |> 
+  knitr::kable()
+```
+
+#### Residual and Fitted Values Plot
+
+```{r residual and fitted values plot}
+bwt_plot = birthweight |> 
+  add_predictions(bw_model1) |> 
+  add_residuals(bw_model1)
+
+ggplot(bwt_plot, aes(x = pred, y = resid)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(
+    title = "Residuals vs. Fitted Plot for Birthweight Model",
+    x = "Fitted (Predicted)",
+    y = "Residuals"
+  ) +
+  theme_minimal()
+```
+
+#### 
