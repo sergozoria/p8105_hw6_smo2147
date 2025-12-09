@@ -1,22 +1,18 @@
 ---
 title: "Homework 6"
 author: "Sergio Ozoria Ramirez"
-date: "2025-12-01"
+date: "2025-12-03"
 output: github_document
 ---
-
 
 # Set up
 Potential packages are first loaded to use for our problem sets. Figure
 preferences were used to set figure sizing and aesthetics for plotting
 outputs.
 
-```{r setup}
+```{r setup, message = FALSE}
 library(tidyverse)
-library(gtsummary)
 library(modelr)
-library(rvest)
-library(scales)
 library(p8105.datasets)
 library(broom)
 
@@ -45,7 +41,9 @@ wash_homi =
   janitor::clean_names()
 ```
 
-```{r create_city_state_and_filters}
+#### City/State Variable + Filters
+
+```{r create city state and filters}
 wash_homi = 
   wash_homi |>
   mutate(
@@ -66,6 +64,10 @@ wash_homi =
     victim_age = as.numeric(victim_age)
   )
 ```
+
+**Note**: In my data cleanup, some cities produced warnings. These warnings seem to be expected and do not seem to affect my ORs.
+
+#### Baltimore: Logistic Regression
 
 ```{r baltimore logistic regression}
 baltimore_df = wash_homi |> 
@@ -89,6 +91,8 @@ baltimore_tidy |>
   filter(term == "victim_sexMale") |> 
   knitr::kable()
 ```
+
+#### All Cities: Logistic Regression
 
 ```{r all cities log regression}
 all_cities = wash_homi |> 
@@ -117,8 +121,9 @@ all_cities_plot =
 knitr::kable(all_cities_plot)
 ```
 
+#### Figure 1. Adjusted ORs: Male vs Female Homicide Victims
 
-```{r figure_1, fig.height = 22, fig.width = 7}
+```{r figure 1, fig.height = 22, fig.width = 7}
 ggplot(all_cities_plot,
        aes(
          x = estimate,
@@ -144,7 +149,7 @@ ggplot(all_cities_plot,
   )
 ```
 
-#### Figure 1. Comments:
+##### Figure 1. Comments:
 
 Across U.S. cities in our sample, the adjusted odds ratios were predominantly below the null value of 1, indicating that homicides involving male victims were less likely to be solved when compared to those involving female victims, after adjusting for victim age and race. In many cities, however, the confidence intervals included the null value, suggesting little evidence of an association and/or no clear indication of higher or lower case resolution rates for male-victim case in those cities. 
 
@@ -162,6 +167,8 @@ weather_clean = weather_df |>
   select(tmax, tmin, prcp) |>
   drop_na()
 ```
+
+#### Bootstrap Function
 
 ```{r bootstrap funct} 
 bootstrap_est = function(df) {
@@ -192,6 +199,7 @@ bootstrap_est = function(df) {
 }
 ```
 
+#### Building Iteration
 
 ```{r iteraton 5000}
 set.seed(123)
@@ -204,6 +212,7 @@ boot_results =
     unnest(results)
 ```
 
+#### Figure 2. Bootstrap Distribution of R2
 
 ```{r figure 2}
 boot_results |> 
@@ -225,9 +234,11 @@ boot_ci_r2 |>
   knitr::kable()
 ```
 
-#### Figure 2. Comments: 
+##### Figure 2. Comments: 
 
-The bootstrap distribution of R2 is approximately symmetric and bell-shaped, where the data is centered around 0.94. This means that across repeated resamples of the weather data, the model will consistently explain about 94% of the variability in `tmax` using `tmin` and `prcp` as predictors. The remaining 6% of variation might be explain by outside factors not included in the model, which could reflect day-to-day fluctuations in temperature that are not captured by our predictors. Therefore, with bootstrap sample of 5000, the 95% CI for R2 is about 0.934 (lower), 0.946 (upper). These estimates show little uncertainty in the statistical power the model is producing. Thus, we can conclude that tmin is a strong predictor of tmax. 
+The bootstrap distribution of R2 is approximately symmetric and bell-shaped, where the data is centered around 0.94. This means that across repeated resamples of the weather data, the model will consistently explain about 94% of the variability in `tmax` using `tmin` and `prcp` as predictors. The remaining 6% of variation might be explain by outside factors not included in the model, which could reflect day-to-day fluctuations in temperature that are not captured by our predictors. Therefore, with bootstrap sample of 5000, the 95% CI for R2 is about 0.934 (lower), 0.946 (upper). These estimates show little uncertainty in the statistical power the model is producing. Thus, we can conclude that `tmin` is a strong predictor of `tmax`.
+
+#### Figure 3. Bootstrap Distribution of B1 / B2
 
 ```{r figure 3}
 boot_results |> 
@@ -249,9 +260,9 @@ boot_ci_b12 |>
   knitr::kable()
 ```
 
-#### Figure 3. Comments:
+##### Figure 3. Comments:
 
-The bootstrap distribution for B1 and B2 is right-skewed and centered around large negative values, somewhere between 280 and 120. This means that the estimated coefficients for `prcp` are very close to zero across most bootstrap samples. Because of this, it leads to instability in the model and long tails in the distribution. This is also supported by the 95% bootstrap CIs for the estimates, with a 95% CI of -277.17 (lower), -125.70 (upper), showing instability. This means that `tmin` and `prcp` have opposite estimates in almost most bootstrap samples. This means that `prcp` is unable to provide linear information once we account for `tmin` in the mode
+The bootstrap distribution for B1 and B2 is right-skewed and centered around large negative values, somewhere between 280 and 120. This means that the estimated coefficients for `prcp` are very close to zero across most bootstrap samples. Because of this, it leads to instability in the model and long tails in the distribution. This is also supported by the 95% bootstrap CIs for the estimates, with a 95% CI of -277.17 (lower), -125.70 (upper), showing instability. This means that `tmin` and `prcp` have opposite estimates in almost most bootstrap samples. This means that `prcp` is unable to provide linear information once we account for `tmin` in the model.
 
 # Problem 3
 
@@ -261,6 +272,7 @@ birthweight =
   janitor::clean_names()
 ```
 
+#### Cleaning Birthweight Dataset
 
 ```{r cleaning birthweight ds}
 birthweight = birthweight |> 
@@ -292,6 +304,7 @@ mutate(
   )
 ```
 
+#### Checking NAs and/or Missing Values
 
 ```{r checking NAs}
 colSums(is.na(birthweight)) |> 
@@ -302,7 +315,7 @@ colSums(is.na(birthweight)) |>
 
 To propose a regression model for the birth-weight dataset, I took a look at the dataset in question, explored the literature a bit, and considered biological factors into the decision-making for this regression model. Because birth-weight is impacted by the head circumference and length at birth (which tend to be larger/heavier than the body at birth), as well as the mother's gestational age, these variables serve as core indicators of fetal growth. There are also other factors known to impact fetal growth, such as smoking during pregnancy, maternal weight gain, pre-pregnancy body mass index, and the age of the mother.
 
-Based on these factors, I used a linear regression model that includes `bhead` as the main predictor and `bwt` as the outcome of interest, followed by additional covariates, including `blength`, `gaweeks`, `babysex`, `smoken`, `wtgain`, `ppbmi`, `mheight`, and `momage`. These covariates help reduce potential confounding and improve precision/accuracy in our estimates. 
+Based on these factors, I used a linear regression model that includes `bhead` as the main predictor and `bwt` as the outcome of interest, followed by additional covariates, including `blength`, `gaweeks`, `babysex`, `smoken`, `wtgain`, `ppbmi`, `mheight`, and `momage`. These covariates help reduce potential confounding and improve precision/accuracy in our estimates.
 
 This model will be compared to another model that uses length at birth and gestational age as predictors, and another that includes head circumference, length, sex, and all interactions. These models will help us assess which model is the best at predicting the outcomes of interest.
 
@@ -336,4 +349,108 @@ ggplot(bwt_plot, aes(x = pred, y = resid)) +
   theme_minimal()
 ```
 
-#### 
+#### Main Effect Model
+
+```{r main effect lm}
+bwt_ga_model2 = lm(
+  bwt ~ blength + gaweeks,
+  data = birthweight
+)
+```
+
+#### Head, Length, Sex + All Interactions Model
+
+```{r all interactions lm}
+all_int_model3 = lm(
+  bwt ~ bhead * blength * babysex,
+  data = birthweight
+)
+```
+
+#### Comparison of Cross-validated Prediction Error
+
+```{r cross-validated prediction error}
+set.seed(123)
+
+cv_models =
+  crossv_mc(birthweight, n = 100)
+
+cv_results =
+  cv_models |> 
+  mutate(
+    train = map(train, as_tibble),
+    test  = map(test, as_tibble),
+    bwt_mod1 = map(train, ~ lm(
+      bwt ~ bhead + blength + gaweeks + babysex +
+        smoken + wtgain + ppbmi + mheight + momage,
+      data = .x
+    )),
+    bwt_ga_mod2 = map(train, ~ lm(
+      bwt ~ blength + gaweeks,
+      data = .x
+    )),
+    all_int_mod3 = map(train, ~ lm(
+      bwt ~ bhead * blength * babysex,
+      data = .x
+    )),
+    rmse_bwt = map2_dbl(bwt_mod1, test, ~ rmse(model = .x, data = .y)),
+    rmse_ga = map2_dbl(bwt_ga_mod2, test, ~ rmse(model = .x, data = .y)),
+    rmse_all = map2_dbl(all_int_mod3, test, ~ rmse(model = .x, data = .y))
+  )
+
+cv_summary =
+  cv_results |> 
+  select(starts_with("rmse")) |> 
+  pivot_longer(
+    cols = everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_"
+  ) |> 
+  mutate(
+    model = recode(model,
+      bwt = "birthweight model",
+      ga  = "length + ga model",
+      all = "full interaction model"
+    )
+  ) |> 
+  group_by(model) |> 
+  summarize(
+    mean_rmse = mean(rmse),
+    sd_rmse   = sd(rmse)
+  )
+
+knitr::kable(cv_summary, digits = 1)
+```
+
+#### Figure 4. Comparison of Cross-Validated Prediction Error (RMSE)
+
+```{r cross validated prediction plot}
+cv_results |> 
+  select(starts_with("rmse")) |> 
+  pivot_longer(
+    cols = everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_"
+  ) |> 
+  mutate(
+    model = recode(model,
+      bwt = "Proposed model",
+      ga  = "Length + GA model",
+      all = "Full interaction model"
+    )
+  ) |> 
+  ggplot(aes(x = model, y = rmse)) +
+  geom_violin(fill = "lightblue", alpha = 0.6) +
+  geom_boxplot(width = 0.15, outlier.alpha = 0.3) +
+  labs(
+    title = "Figure 4. Comparison of Cross-Validated Prediction Error",
+    x = "Model",
+    y = "RMSE (Cross-validated)"
+  )
+```
+
+##### Figure 4. Comments:
+
+The proposed birthweight regression model showed the lowest prediction error, where RMSE values cluster around 268-300. For the model exploring length and gestational age, it performed the worst and showed the large spread in RMSE values, which indicates that these two predictors, length and gestational age, alone are not enough to predict determinants of birthweight. As for the full interaction model, it performed better than the length and gestational age model, but still showed a bit higher wtih more variability in RMSE values when compared to the proposed birthweight regression model. As a result, the cross-validated results indicate that the proposed birthweight regression model has the strongest predictive performance on birthweight than any other model in this secondary data analysis.
